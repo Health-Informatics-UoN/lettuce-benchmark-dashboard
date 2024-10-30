@@ -79,8 +79,11 @@ const short_metrics = experiment.Results.reduce(
     (accumulator, pipeline) => {
         const modelName = Object.keys(pipeline)[0];
         const results = Object.values(pipeline[modelName]["results"]);
-        const descriptions = [...results].map((e) => Object.keys(e)[0]);
-        descriptions.forEach((e) => accumulator.add(e));
+        const descriptions = [...results].map((e) => Object.keys(e));
+        descriptions.forEach((e) => {
+                e.forEach((d) => accumulator.add(d))
+            }
+        );
         return accumulator;
     },
     new Set()
@@ -94,7 +97,7 @@ const plot_metric = view(Inputs.select(short_metrics))
 ```js
 const aggregations = {
     sum: (arr) => arr.reduce((a,b) => a+b, 0),
-    sum_fraction: arr => arr.reduce((a,b) => a+b, 0)/arr.length,
+    mean: arr => arr.reduce((a,b) => a+b, 0)/arr.length,
 }
 ```
 
