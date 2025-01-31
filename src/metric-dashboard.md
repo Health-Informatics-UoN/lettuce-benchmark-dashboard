@@ -4,6 +4,10 @@ title: Benchmark dashboard
 toc: false
 ---
 
+```js
+import { saveSvgAsFile } from "./components/savefig.js"
+import { renderTableAsMD } from "./components/renderTable.js"
+```
 # Explore your Benchmark results
 
 ```js
@@ -35,8 +39,9 @@ const experiment = view(
 
 ## ${experiment.Experiment}
 
-${experiment.Description}
-
+```js
+experiment.Description
+```
 
 ```js
 const experiment_metrics = experiment.Results.reduce(
@@ -96,8 +101,10 @@ const plot_metric = view(Inputs.select(short_metrics))
 
 ```js
 const aggregations = {
-    sum: (arr) => arr.reduce((a,b) => a+b, 0),
+    sum: arr => arr.reduce((a,b) => a+b, 0),
     mean: arr => arr.reduce((a,b) => a+b, 0)/arr.length,
+    threshold: thresh => arr => arr.filter(b => b > thresh).length,
+    fraction_threshold: thresh => arr => arr.filter(b => b > thresh).length/arr.length,
 }
 ```
 
@@ -106,17 +113,48 @@ const chosen_aggregation = view(Inputs.select(Object.keys(aggregations)))
 ```
 
 ```js
+const threshold = chosen_aggregation=="threshold" || chosen_aggregation=="fraction_threshold" ? view(Inputs.text({type: "number", label: "Threshold value"})) : null
+```
+
+```js
+const agg_func = threshold ? aggregations[chosen_aggregation](threshold) : aggregations[chosen_aggregation]
+```
+
+```js
 const metric_data = experiment.Results.reduce(
     (acc, pipeline) => {
         const modelName = Object.keys(pipeline)[0];
         const results = Object.values(pipeline[modelName]["results"]);
         const metric_result = results.map((e) => e[plot_metric]);
-        acc.push({name: modelName, data: aggregations[chosen_aggregation](metric_result)});
+        acc.push({name: modelName, data: agg_func(metric_result)});
         return acc;
     }, []
 )
 ```
 
 ```js
-Plot.barY(metric_data, {x: "name", y: "data"}).plot()
+const chart = Plot.plot({
+    marginBottom: 80,
+    x: {tickRotate: -30, label: "Pipeline"},
+    y: {label: plot_metric + " (" + chosen_aggregation + ")" },
+    marks: [
+        Plot.ruleY([0]),
+        Plot.barY(
+            metric_data,
+            {x: "name", y: "data", sort: {x: "y"}}
+        )
+    ]
+});
+
+const svgString = chart.outerHTML.replace(/^<svg /, '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" ');
 ```
+
+<div class="grid grid-cols-2">
+    <div class="card">${chart}</div>
+    <div class="card">${view(Inputs.table(metric_data))}</div>
+</div>
+
+<div class="grid grid-cols-2">
+    <div>${view(Inputs.button("Download chart", {value: null, reduce: () => saveSvgAsFile(svgString)}))}</div>
+    <div>${view(Inputs.button("Copy table", {value:null, reduce: () => navigator.clipboard.writeText(renderTableAsMD(metric_data, plot_metric, chosen_aggregation))}))}</div>
+</div>
